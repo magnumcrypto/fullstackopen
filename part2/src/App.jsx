@@ -1,18 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import personService from './services/persons'
 import Note from './components/Note'
 import Filter from './components/Filter'
 import Form from './components/Form'
 
 const App = () => {
-  const [persons, setPersons] = useState([
-    { name: 'Arto Hellas', number: '040-123456', id: 1 },
-    { name: 'Ada Lovelace', number: '39-44-5323523', id: 2 },
-    { name: 'Dan Abramov', number: '12-43-234345', id: 3 },
-    { name: 'Mary Poppendieck', number: '39-23-6423122', id: 4 }
-  ])
+  const [persons, setPersons] = useState([])
   const [newName, setNewName] = useState('')
   const [newNumber, setNewNumber] = useState('')
   const [filter, setFilter] = useState('')
+
+  useEffect(() => {
+    personService
+      .getAll()
+      .then(initialPersons => {
+        setPersons(initialPersons)
+      })
+  }, [])
 
   const handlePersonChange = (event) => {
     setFilter(event.target.value)
@@ -32,11 +36,33 @@ const App = () => {
 
     const exists = persons.some(person => person.name === newPerson.name)
     if (exists) {
-      alert(`${newName} is already added to phonebook`)
+      const person = persons.find(p => p.name === newName)
+      const changedPerson = { ...person, number: newNumber }
+      personService
+        .update(person.id, changedPerson)
+        .then(response => {
+          setPersons(persons.map(person => person.name !== newName ? person : response))
+        })
     } else {
-      setPersons(persons.concat(newPerson))
+      personService
+        .create(newPerson)
+        .then(returnedPerson => {
+          setPersons(persons.concat(returnedPerson))
+        })
       setNewName('')
       setNewNumber('')
+    }
+  }
+
+  const deletePersonById = (id) => {
+    const confirm = window.confirm(`Delete person with ${id} ID?`)
+    if (confirm) {
+      personService
+        .deletePerson(id)
+        .then(response => {
+          console.log('RESPONSE OF DELETE', response)
+          setPersons(persons.filter(person => person.id !== id))
+        })
     }
   }
 
@@ -59,7 +85,12 @@ const App = () => {
       <h2>Numbers</h2>
       <ul>
         {personsToShow.map(person =>
-          <Note key={person.name} note={person.name} number={person.number} />
+          <Note key={person.id}
+            note={person.name}
+            number={person.number}
+            deletePerson={deletePersonById}
+            id={person.id}
+          />
         )}
       </ul>
     </div>
