@@ -1,18 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import personService from './services/persons'
 import Note from './components/Note'
 import Filter from './components/Filter'
 import Form from './components/Form'
+import Notification from './components/Notification'
 
 const App = () => {
-  const [persons, setPersons] = useState([
-    { name: 'Arto Hellas', number: '040-123456', id: 1 },
-    { name: 'Ada Lovelace', number: '39-44-5323523', id: 2 },
-    { name: 'Dan Abramov', number: '12-43-234345', id: 3 },
-    { name: 'Mary Poppendieck', number: '39-23-6423122', id: 4 }
-  ])
+  const [persons, setPersons] = useState([])
   const [newName, setNewName] = useState('')
   const [newNumber, setNewNumber] = useState('')
   const [filter, setFilter] = useState('')
+  const [message, setMessage] = useState(null)
+  const [isError, setIsError] = useState(false)
+
+  useEffect(() => {
+    personService
+      .getAll()
+      .then(initialPersons => {
+        setPersons(initialPersons)
+      })
+  }, [])
 
   const handlePersonChange = (event) => {
     setFilter(event.target.value)
@@ -32,11 +39,54 @@ const App = () => {
 
     const exists = persons.some(person => person.name === newPerson.name)
     if (exists) {
-      alert(`${newName} is already added to phonebook`)
+      const person = persons.find(p => p.name === newName)
+      const changedPerson = { ...person, number: newNumber }
+      personService
+        .update(person.id, changedPerson)
+        .then(response => {
+          setPersons(persons.map(person => person.name !== newName ? person : response))
+          setMessage(`Updated ${newPerson.name}`)
+          setIsError(false);
+          setTimeout(() => { setMessage(null) }, 5000)
+        })
+        .catch(error => {
+          if (error.response && error.response.status === 404) {
+            // La persona ya no existe en el servidor
+            setMessage(`The person '${newPerson.name}' was already deleted from the server`);
+            setIsError(true);
+            setPersons(persons.filter(p => p.id !== person.id)); // Eliminarla del estado local
+          } else {
+            setMessage(`Failed to update ${newPerson.name}`, true);
+          }
+          setTimeout(() => { setMessage(null) }, 5000)
+        });
     } else {
-      setPersons(persons.concat(newPerson))
+      personService
+        .create(newPerson)
+        .then(returnedPerson => {
+          setPersons(persons.concat(returnedPerson))
+          setMessage(`Added ${newPerson.name}`)
+          setIsError(false);
+          setTimeout(() => { setMessage(null) }, 5000)
+        })
+
       setNewName('')
       setNewNumber('')
+    }
+  }
+
+  const deletePersonById = (id) => {
+    const confirm = window.confirm(`Delete person with ${id} ID?`)
+    if (confirm) {
+      personService
+        .deletePerson(id)
+        .then(response => {
+          console.log('RESPONSE OF DELETE', response)
+          setPersons(persons.filter(person => person.id !== id))
+          setMessage(`Deleted person with ID ${id}`)
+          setIsError(false);
+          setTimeout(() => { setMessage(null) }, 5000)
+        })
     }
   }
 
@@ -46,7 +96,8 @@ const App = () => {
 
   return (
     <div>
-      <h2>Phonebook</h2>
+      <h1>Phonebook</h1>
+      <Notification message={message} isError={isError}></Notification>
       <Filter handlePersonChange={handlePersonChange} filter={filter}></Filter>
       <h2>Add a new person</h2>
       <Form
@@ -59,7 +110,12 @@ const App = () => {
       <h2>Numbers</h2>
       <ul>
         {personsToShow.map(person =>
-          <Note key={person.name} note={person.name} number={person.number} />
+          <Note key={person.id}
+            note={person.name}
+            number={person.number}
+            deletePerson={deletePersonById}
+            id={person.id}
+          />
         )}
       </ul>
     </div>
