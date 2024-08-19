@@ -28,6 +28,7 @@ server.use(express.json())
 server.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'))
 //configure cors
 server.use(cors())
+server.use(express.static('dist'))
 
 let persons = [
     {
