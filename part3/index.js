@@ -1,6 +1,8 @@
+require('dotenv').config()
 const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
+const Person = require('./models/person')
 
 const server = express()
 
@@ -30,28 +32,6 @@ server.use(morgan(':method :url :status :res[content-length] - :response-time ms
 server.use(cors())
 server.use(express.static('dist'))
 
-let persons = [
-    {
-        "id": 1,
-        "name": "Arto Hellas",
-        "number": "040-123456"
-    },
-    {
-        "id": 2,
-        "name": "Ada Lovelace",
-        "number": "39-44-5323523"
-    },
-    {
-        "id": 3,
-        "name": "Dan Abramov",
-        "number": "12-43-234345"
-    },
-    {
-        "id": 4,
-        "name": "Mary Poppendieck",
-        "number": "39-23-6423122"
-    }
-]
 
 server.get('/', (request, response) => {
     response.send('<h1>Hello World</h1>');
@@ -65,60 +45,46 @@ server.get('/info', (request, response) => {
 
 //GET 127.0.0.1:3001/api/persons
 server.get('/api/persons', (request, response) => {
-    response.json(persons);
+    Person.find({}).then(person => {
+        response.json(person)
+    })
 })
 
 //GET 127.0.0.1:3001/api/persons/3
 server.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id);
-    const person = persons.find(person => person.id === id);
-
-    if (person) { response.json(person) }
-    response.status(404).end();
+    Person.findById(request.params.id).then(person => {
+        response.json(person)
+    })
 })
 
-//DELETE 127.0.0.1:3001/api/persons/3
+/* //DELETE 127.0.0.1:3001/api/persons/3
 server.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id);
-    persons = persons.filter(person => person.id !== id);
+    const id = request.params.id;
+    const person = Person.findById(id);
 
     response.status(204).json({ message: 'Person deleted' });
-})
-
-const generateId = () => {
-    const maxId = persons.length > 0
-        ? Math.max(...persons.map(p => p.id))
-        : 0
-    return maxId + 1
-}
+}) */
 
 //POST 127.0.0.1:3001/api/persons
 server.post('/api/persons', (request, response) => {
     const body = request.body
     if (!body.name || !body.number) {
-        return response.status(400).json({
-            error: 'Content missing'
-        })
-    }
-    const existingPerson = persons.find(person => person.name === body.name);
-    if (existingPerson) {
-        return response.status(400).json({
-            error: 'Name must be unique'
-        })
+        return response.status(400).json({ error: 'Content missing' })
     }
 
-    const person = {
-        id: generateId(),
+    const person = new Person({
         name: body.name,
         number: body.number
-    }
-    persons = persons.concat(person)
-    response.json(person)
+    })
+
+    person.save().then(savedPerson => {
+        response.json(savedPerson)
+    })
 })
 
 server.use(unknownEndpoint)
 
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
 })
